@@ -12,7 +12,6 @@ if not SST_DB then
         y = 0,
         isVisible = true,
         trackedIDs = {},
-        -- Инициализация состояний кнопок каналов (по умолчанию включен только SAY)
         chSay = true,
         chParty = false,
         chRaid = false,
@@ -27,7 +26,7 @@ else
 end
 
 local frame = CreateFrame("Frame", "SST_Frame", UIParent)
-frame:SetWidth(280) -- Немного увеличили ширину для новых кнопок
+frame:SetWidth(280) 
 frame:SetHeight(100)
 frame:SetMovable(true)
 frame:EnableMouse(true)
@@ -43,7 +42,6 @@ local border = frame:CreateTexture(nil, "BORDER")
 border:SetAllPoints(frame)
 border:SetTexture(0.5, 0.5, 0.5, 1)
 
--- Функция создания обычной кнопки
 local function CreateControlButton(parent, textChar, colorR, colorG, colorB, onClickFunc)
     local btn = CreateFrame("Button", nil, parent)
     btn:SetSize(18, 18)
@@ -69,7 +67,6 @@ local function CreateControlButton(parent, textChar, colorR, colorG, colorB, onC
     return btn
 end
 
--- Функция создания кнопки-переключателя (Toggle)
 local function CreateToggleButton(parent, text, dbKey, anchorTo, offsetX)
     local btn = CreateFrame("Button", nil, parent)
     btn:SetSize(22, 18)
@@ -86,14 +83,13 @@ local function CreateToggleButton(parent, text, dbKey, anchorTo, offsetX)
     txt:SetPoint("CENTER", btn, "CENTER", 0, 1)
     txt:SetText(text)
     
-    -- Функция обновления визуального состояния
     local function UpdateVisuals()
         if SST_DB[dbKey] then
-            bgBtn:SetTexture(0.2, 0.6, 0.2, 0.8) -- Зеленый фон (ВКЛ)
-            txt:SetTextColor(1, 1, 1)            -- Белый текст
+            bgBtn:SetTexture(0.2, 0.6, 0.2, 0.8)
+            txt:SetTextColor(1, 1, 1)
         else
-            bgBtn:SetTexture(0.2, 0.2, 0.2, 0.8) -- Темный фон (ВЫКЛ)
-            txt:SetTextColor(0.5, 0.5, 0.5)      -- Серый текст
+            bgBtn:SetTexture(0.2, 0.2, 0.2, 0.8)
+            txt:SetTextColor(0.5, 0.5, 0.5)
         end
     end
     
@@ -106,7 +102,6 @@ local function CreateToggleButton(parent, text, dbKey, anchorTo, offsetX)
     return btn
 end
 
--- 1. Кнопка статистики ($)
 local btnStats = CreateControlButton(frame, "$", 1, 0.8, 0, function()
     SST.showStats = not SST.showStats
     if SST.Session and SST.Session.elements then
@@ -120,12 +115,11 @@ local btnStats = CreateControlButton(frame, "$", 1, 0.8, 0, function()
 end)
 btnStats:SetPoint("TOPLEFT", frame, "TOPLEFT", 4, -4)
 
--- 2. Кнопка справки (?)
 local btnHelp = CreateControlButton(frame, "?", 1, 1, 1, function()
     print("|cff00ff00=========================================|r")
     print("|cff00ff00[SST] Simple Session & Cooldown Tracker|r")
     print("|cff00ff00=========================================|r")
-    print("|cff00ff00/sst add <ID>|r      - Добавить заклинание (Пример: |cff00ff00/sst add 45438|r)")
+    print("|cff00ff00/sst add <Название>|r  - Добавить заклинание (Пример: |cff00ff00/sst add Ледяная глыба|r)")
     print("|cff00ff00/sst clear|r         - Очистить список отслеживаемых заклинаний")
     print("|cff00ff00/sst reset|r         - Сбросить статистику сессии (список заклинаний не изменится)")
     print("|cff00ff00/sst|r или |cff00ff00/session|r  - Показать или скрыть окно аддона")
@@ -135,7 +129,6 @@ local btnHelp = CreateControlButton(frame, "?", 1, 1, 1, function()
 end)
 btnHelp:SetPoint("LEFT", btnStats, "RIGHT", 4, 0)
 
--- 3-6. Кнопки каналов чата (Переключатели)
 local btnSay = CreateToggleButton(frame, "С", "chSay", btnHelp, 6)
 local btnParty = CreateToggleButton(frame, "Гр", "chParty", btnSay, 2)
 local btnRaid = CreateToggleButton(frame, "Р", "chRaid", btnParty, 2)
@@ -162,7 +155,6 @@ loadFrame:RegisterEvent("ADDON_LOADED")
 loadFrame:RegisterEvent("PLAYER_LOGIN")
 loadFrame:SetScript("OnEvent", function(self, event, arg1)
     if event == "ADDON_LOADED" and arg1 == "SimpleSessionTracker" then
-        -- Обновляем визуальное состояние кнопок каналов при загрузке
         btnSay.UpdateVisuals()
         btnParty.UpdateVisuals()
         btnRaid.UpdateVisuals()
