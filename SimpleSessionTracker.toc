@@ -1,9 +1,9 @@
 ## Interface: 30300
-## Title: |cff00ff00Simple|r Session & Cooldown Tracker
-## Notes: Отслеживает время, золото, перезарядку и показывает ID в подсказках.
+## Title: Simple Session & Cooldown Tracker
+## Notes: Отслеживает время, золото и перезарядку заклинаний.
 ## Author: Qwen
-## Version: 4.6 (Added SpellID Tooltips)
-## SavedVariables: SST_DB
+## Version: 7.0 (Character Specific Saves)
+## SavedVariablesPerCharacter: SST_DB
 Core.lua
 Session.lua
 Cooldowns.lua

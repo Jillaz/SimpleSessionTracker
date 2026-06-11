@@ -1,8 +1,9 @@
 -- ==========================================
--- Cooldowns.lua: Отслеживание перезарядки заклинаний (ДИАГНОСТИКА)
+-- Cooldowns.lua: Отслеживание перезарядки заклинаний
+-- Версия: 11.1 (Использование IsSpellKnown для точного определения доступности)
 -- ==========================================
 
-print("|cff00ff00[SST DEBUG]|r Файл Cooldowns.lua успешно загружен игрой!")
+print("|cff00ff00[SST]|r Версия Cooldowns.lua: 11.1 (Исправлен статус 'Недоступно')")
 
 SST.Cooldowns = {}
 
@@ -19,70 +20,79 @@ cdTitle:SetPoint("TOPLEFT", cdContainer, "TOPLEFT", 0, 0)
 cdTitle:SetText("|cffaaaaaaПерезарядка:|r")
 cdTitle:Hide()
 
+-- АБСОЛЮТНО ЗАЩИЩЕННАЯ ФУНКЦИЯ ЗАГРУЗКИ
 function SST.Cooldowns:Init()
-    print("|cff00ff00[SST DEBUG]|r Запуск функции Init...")
     wipe(trackedSpells)
-    local loadedCount = 0
+    local activeCount = 0
+    local unavailableCount = 0
     
-    print("|cff00ff00[SST DEBUG]|r SST_DB существует: " .. tostring(SST_DB ~= nil))
-    
-    if SST_DB then
-        print("|cff00ff00[SST DEBUG]|r SST_DB.trackedIDs существует: " .. tostring(SST_DB.trackedIDs ~= nil))
-        
-        if SST_DB.trackedIDs then
-            for key, _ in pairs(SST_DB.trackedIDs) do
-                print("|cff00ff00[SST DEBUG]|r Найдено в сохранении ключ: " .. tostring(key))
-                local spellID = tonumber(key)
-                
-                if spellID then
-                    local name = GetSpellInfo(spellID)
-                    if name then
-                        local start, duration, enable = GetSpellCooldown(name)
-                        local endTime = (duration > 0 and start > 0 and enable == 1) and (start + duration) or GetTime()
-                        trackedSpells[spellID] = { name = name, endTime = endTime }
-                        loadedCount = loadedCount + 1
-                        print("|cff00ff00[SST DEBUG]|r Успешно загружено: " .. name .. " (ID: " .. spellID .. ")")
-                    else
-                        print("|cffffaa00[SST DEBUG]|r ВНИМАНИЕ: GetSpellInfo вернул nil для ID " .. spellID .. ". Заклинание удалено из сохранения.")
-                        SST_DB.trackedIDs[key] = nil
-                    end
-                end
-            end
-            print("|cff00ff00[SST]|r ИТОГО: Успешно загружено заклинаний из сохранения: " .. loadedCount)
-        else
-            print("|cffff0000[SST DEBUG]|r ОШИБКА: Поле trackedIDs отсутствует. Создаем.")
-            SST_DB.trackedIDs = {}
+    -- 1. Собираем все ключи в безопасный локальный массив
+    local keys = {}
+    if SST_DB and SST_DB.trackedIDs then
+        for k, _ in pairs(SST_DB.trackedIDs) do
+            table.insert(keys, k)
         end
-    else
-        print("|cffff0000[SST DEBUG]|r КРИТИЧЕСКАЯ ОШИБКА: Глобальная таблица SST_DB равна nil!")
-        SST_DB = { trackedIDs = {} }
+    end
+
+    -- 2. Проходим по безопасному массиву
+    for i = 1, #keys do
+        local rawKey = keys[i]
+        local spellID = tonumber(rawKey)
+        
+        if spellID then
+            local savedName = SST_DB.trackedIDs[rawKey]
+            local success, currentName = pcall(GetSpellInfo, spellID)
+            
+            -- 3. ГЛАВНОЕ ИСПРАВЛЕНИЕ: Проверяем, знает ли персонаж это заклинание
+            local isKnown = false
+            local ok, knownResult = pcall(IsSpellKnown, spellID)
+            if ok then
+                isKnown = knownResult
+            end
+            
+            if success and currentName and isKnown then
+                -- Заклинание доступно и изучено в текущей специализации
+                local s2, start, duration = pcall(GetSpellCooldown, currentName)
+                local endTime = (s2 and type(start) == "number" and type(duration) == "number" and duration > 0 and start > 0) and (start + duration) or GetTime()
+                
+                trackedSpells[spellID] = { name = currentName, endTime = endTime, isAvailable = true }
+                activeCount = activeCount + 1
+            else
+                -- Заклинание не изучено в текущей специализации
+                local displayName = (success and currentName) and currentName or (savedName or ("Неизвестное (ID: " .. spellID .. ")"))
+                trackedSpells[spellID] = { name = displayName, endTime = 0, isAvailable = false }
+                unavailableCount = unavailableCount + 1
+            end
+        end
+    end
+    
+    if activeCount > 0 or unavailableCount > 0 then
+        print("|cff00ff00[SST]|r Загружено: " .. activeCount .. " активных, " .. unavailableCount .. " недоступных в текущем спеке.")
     end
 end
 
 function SST.Cooldowns:Add(idStr)
     local spellID = tonumber(idStr)
     if not spellID then
-        print("|cffff0000[SST]|r Ошибка: Пожалуйста, введите числовой ID.")
+        print("|cffff0000[SST]|r Ошибка: Пожалуйста, введите числовой ID. Пример: /sst add 45438")
         return
     end
     
-    local name = GetSpellInfo(spellID)
-    if not name then
-        print("|cffff0000[SST]|r Ошибка: Заклинание с ID " .. spellID .. " не найдено в книге.")
+    local success, name = pcall(GetSpellInfo, spellID)
+    if not success or not name then
+        print("|cffff0000[SST]|r Ошибка: Заклинание с ID " .. spellID .. " не найдено.")
         return
     end
     
-    local start, duration, enable = GetSpellCooldown(name)
-    local endTime = (duration > 0 and start > 0 and enable == 1) and (start + duration) or GetTime()
+    local s2, start, duration = pcall(GetSpellCooldown, name)
+    local endTime = (s2 and type(start) == "number" and type(duration) == "number" and duration > 0 and start > 0) and (start + duration) or GetTime()
     
-    trackedSpells[spellID] = { name = name, endTime = endTime }
+    trackedSpells[spellID] = { name = name, endTime = endTime, isAvailable = true }
     
-    -- Явная запись
-    SST_DB.trackedIDs[spellID] = true 
+    -- Сохраняем имя заклинания для случая смены специализации
+    SST_DB.trackedIDs[tostring(spellID)] = name 
     
-    print("|cff00ff00[SST DEBUG]|r Заклинание добавлено в память. Проверка SST_DB.trackedIDs[" .. spellID .. "]: " .. tostring(SST_DB.trackedIDs[spellID]))
-    print("|cff00ff00[SST]|r Заклинание [" .. name .. "] добавлено.")
-    
+    print("|cff00ff00[SST]|r Заклинание [" .. name .. "] (ID: " .. spellID .. ") добавлено.")
     frame:Show()
     SST_DB.isVisible = true
 end
@@ -90,7 +100,7 @@ end
 function SST.Cooldowns:Clear()
     wipe(trackedSpells)
     wipe(SST_DB.trackedIDs)
-    print("|cff00ff00[SST]|r Список очищен.")
+    print("|cff00ff00[SST]|r Список отслеживаемых заклинаний полностью очищен.")
 end
 
 function SST.Cooldowns.UpdateLayout()
@@ -101,7 +111,12 @@ function SST.Cooldowns.UpdateLayout()
         cdContainer:SetHeight(0)
         cdTitle:Hide()
         for _, btn in ipairs(cooldownFrames) do btn:Hide() end
-        if SST.showStats then frame:SetHeight(100) else frame:SetHeight(40) end
+        
+        if SST.showStats then
+            frame:SetHeight(100)
+        else
+            frame:SetHeight(40)
+        end
         return
     end
 
@@ -119,37 +134,52 @@ function SST.Cooldowns.UpdateLayout()
         btn:SetWidth(260)
         btn:SetHeight(16)
         btn:SetPoint("TOPLEFT", cdContainer, "TOPLEFT", 0, -20 - (idx - 1) * 18)
+        
         btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
         
         local hoverBg = btn:CreateTexture(nil, "BACKGROUND")
         hoverBg:SetAllPoints(btn)
         hoverBg:SetTexture(1, 1, 1, 0.15)
         hoverBg:Hide()
+        
         btn:SetScript("OnEnter", function() hoverBg:Show() end)
         btn:SetScript("OnLeave", function() hoverBg:Hide() end)
         
         local text = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         text:SetPoint("LEFT", btn, "LEFT", 5, 0)
         text:SetJustifyH("LEFT")
+        
         btn.text = text
         btn.hoverBg = hoverBg
         cooldownFrames[idx] = btn
     end
 
+    -- Авто-синхронизация кулдаунов (ТОЛЬКО для доступных заклинаний)
     for spellID, data in pairs(trackedSpells) do
-        local start, duration, enable = GetSpellCooldown(data.name)
-        if duration > 0 and start > 0 and enable == 1 then
-            local newEndTime = start + duration
-            if newEndTime > data.endTime then data.endTime = newEndTime end
+        if data.isAvailable then
+            local success, start, duration = pcall(GetSpellCooldown, data.name)
+            if success and type(start) == "number" and type(duration) == "number" and duration > 0 and start > 0 then
+                local newEndTime = start + duration
+                if newEndTime > data.endTime then data.endTime = newEndTime end
+            end
         end
     end
 
+    -- Отрисовка и обработка кликов
     local i = 1
     for spellID, data in pairs(trackedSpells) do
         if i > activeCount then break end
+        
         local btn = cooldownFrames[i]
-        local remaining = math.max(0, math.ceil(data.endTime - GetTime()))
-        local statusText = remaining > 0 and format("|cffffd700%d|r сек.", remaining) or "|cff00ff00Готово|r"
+        
+        -- ПРОВЕРКА ДОСТУПНОСТИ ДЛЯ ОТОБРАЖЕНИЯ СТАТУСА
+        local statusText
+        if not data.isAvailable then
+            statusText = "|cffff0000Недоступно|r"
+        else
+            local remaining = math.max(0, math.ceil(data.endTime - GetTime()))
+            statusText = remaining > 0 and format("|cffffd700%d|r сек.", remaining) or "|cff00ff00Готово|r"
+        end
         
         btn.text:SetText(format("|cff00ff00%s|r |cff888888(ID:%d)|r: %s", data.name, spellID, statusText))
         btn:Show()
@@ -157,13 +187,19 @@ function SST.Cooldowns.UpdateLayout()
         btn:SetScript("OnClick", function(self, button)
             if button == "RightButton" then
                 trackedSpells[spellID] = nil
-                SST_DB.trackedIDs[spellID] = nil
-                print("|cffff0000[SST]|r Заклинание удалено.")
+                SST_DB.trackedIDs[tostring(spellID)] = nil
+                print("|cffff0000[SST]|r Заклинание [" .. data.name .. "] (ID: " .. spellID .. ") удалено.")
                 SST.Cooldowns.UpdateLayout()
             else
+                -- Левый клик работает только для доступных заклинаний
+                if not data.isAvailable then
+                    print("|cffffaa00[SST]|r Это заклинание недоступно в текущей специализации.")
+                    return
+                end
+
                 local anyEnabled = SST_DB.chSay or SST_DB.chParty or SST_DB.chRaid or SST_DB.chGuild
                 if not anyEnabled then
-                    print("|cffff0000[SST]|r Необходимо выбрать канал для отправки.")
+                    print("|cffff0000[SST]|r Необходимо выбрать канал для отправки сообщений.")
                     return
                 end
 
@@ -187,9 +223,33 @@ function SST.Cooldowns.UpdateLayout()
 
     local totalHeight = 28 + (activeCount * 18)
     cdContainer:SetHeight(totalHeight)
-    if SST.showStats then frame:SetHeight(100 + totalHeight) else frame:SetHeight(40 + totalHeight) end
+    
+    if SST.showStats then
+        frame:SetHeight(100 + totalHeight)
+    else
+        frame:SetHeight(40 + totalHeight)
+    end
 end
 
+-- Слушатель смены специализации
+local talentFrame = CreateFrame("Frame")
+talentFrame:RegisterEvent("PLAYER_TALENT_UPDATE")
+talentFrame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
+
+talentFrame:SetScript("OnEvent", function(self, event)
+    SST.Cooldowns:Init()
+    SST.Cooldowns.UpdateLayout()
+    
+    local activeCount = 0
+    local unavailCount = 0
+    for _, data in pairs(trackedSpells) do
+        if data.isAvailable then activeCount = activeCount + 1
+        else unavailCount = unavailCount + 1 end
+    end
+    print("|cff00ff00[SST]|r Специализация изменена. Активных: " .. activeCount .. ", Недоступных: " .. unavailCount)
+end)
+
+-- Основной цикл обновлений
 local updateFrame = CreateFrame("Frame")
 updateFrame:SetScript("OnUpdate", function(self, elapsed)
     if not self.timer then self.timer = 0 end
