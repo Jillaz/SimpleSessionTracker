@@ -5,6 +5,7 @@
 SST = {}
 SST.showStats = true
 
+-- 1. ЖЕСТКАЯ ИНИЦИАЛИЗАЦИЯ С ЗАЩИТОЙ ОТ NIL
 if not SST_DB then
     SST_DB = {
         point = "CENTER",
@@ -15,7 +16,8 @@ if not SST_DB then
         chSay = true,
         chParty = false,
         chRaid = false,
-        chGuild = false
+        chGuild = false,
+        bgColor = {0.1, 0.1, 0.1, 0.85} -- R, G, B, Alpha по умолчанию
     }
 else
     if not SST_DB.trackedIDs then SST_DB.trackedIDs = {} end
@@ -23,6 +25,9 @@ else
     if SST_DB.chParty == nil then SST_DB.chParty = false end
     if SST_DB.chRaid == nil then SST_DB.chRaid = false end
     if SST_DB.chGuild == nil then SST_DB.chGuild = false end
+    if not SST_DB.bgColor or type(SST_DB.bgColor) ~= "table" or #SST_DB.bgColor ~= 4 then 
+        SST_DB.bgColor = {0.1, 0.1, 0.1, 0.85} 
+    end
 end
 
 local frame = CreateFrame("Frame", "SST_Frame", UIParent)
@@ -34,13 +39,20 @@ frame:RegisterForDrag("LeftButton")
 frame:SetClampedToScreen(true)
 SST.Frame = frame
 
-local bg = frame:CreateTexture(nil, "BACKGROUND")
-bg:SetAllPoints(frame)
-bg:SetTexture(0.1, 0.1, 0.1, 0.85)
+-- ==========================================
+-- НАДЕЖНЫЙ МЕТОД ЗАДАНИЯ ФОНА И РАМКИ (SetBackdrop)
+-- ==========================================
+frame:SetBackdrop({
+    bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = true,
+    tileSize = 16,
+    edgeSize = 16,
+    insets = { left = 4, right = 4, top = 4, bottom = 4 }
+})
 
-local border = frame:CreateTexture(nil, "BORDER")
-border:SetAllPoints(frame)
-border:SetTexture(0.5, 0.5, 0.5, 1)
+-- Цвет рамки фиксируем (серый), он не меняется
+frame:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
 
 local function CreateControlButton(parent, textChar, colorR, colorG, colorB, onClickFunc)
     local btn = CreateFrame("Button", nil, parent)
@@ -102,6 +114,7 @@ local function CreateToggleButton(parent, text, dbKey, anchorTo, offsetX)
     return btn
 end
 
+-- Кнопка статистики ($)
 local btnStats = CreateControlButton(frame, "$", 1, 0.8, 0, function()
     SST.showStats = not SST.showStats
     if SST.Session and SST.Session.elements then
@@ -115,6 +128,7 @@ local btnStats = CreateControlButton(frame, "$", 1, 0.8, 0, function()
 end)
 btnStats:SetPoint("TOPLEFT", frame, "TOPLEFT", 4, -4)
 
+-- Кнопка справки (?)
 local btnHelp = CreateControlButton(frame, "?", 1, 1, 1, function()
     print("|cff00ff00=========================================|r")
     print("|cff00ff00[SST] Simple Session & Cooldown Tracker|r")
@@ -129,11 +143,15 @@ local btnHelp = CreateControlButton(frame, "?", 1, 1, 1, function()
 end)
 btnHelp:SetPoint("LEFT", btnStats, "RIGHT", 4, 0)
 
+-- Кнопки каналов чата
 local btnSay = CreateToggleButton(frame, "С", "chSay", btnHelp, 6)
 local btnParty = CreateToggleButton(frame, "Гр", "chParty", btnSay, 2)
 local btnRaid = CreateToggleButton(frame, "Р", "chRaid", btnParty, 2)
 local btnGuild = CreateToggleButton(frame, "Г", "chGuild", btnRaid, 2)
 
+-- ==========================================
+-- КНОПКА ЗАКРЫТИЯ (X)
+-- ==========================================
 local closeBtn = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
 closeBtn:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 2, 2)
 closeBtn:SetScript("OnClick", function()
@@ -141,6 +159,54 @@ closeBtn:SetScript("OnClick", function()
     SST_DB.isVisible = false
 end)
 
+-- ==========================================
+-- КНОПКА НАСТРОЕК (Шестеренка)
+-- ==========================================
+local btnSettings = CreateFrame("Button", nil, frame)
+btnSettings:SetSize(18, 18)
+btnSettings:SetPoint("RIGHT", closeBtn, "LEFT", -4, 0)
+
+local settingsIcon = btnSettings:CreateTexture(nil, "ARTWORK")
+settingsIcon:SetAllPoints()
+settingsIcon:SetTexture("Interface\\Buttons\\UI-OptionsButton")
+
+local settingsHighlight = btnSettings:CreateTexture(nil, "HIGHLIGHT")
+settingsHighlight:SetAllPoints()
+settingsHighlight:SetTexture("Interface\\Buttons\\UI-OptionsButton")
+settingsHighlight:SetBlendMode("ADD")
+
+-- ФУНКЦИЯ ЦВЕТОВОГО ПИКЕРА
+local function OpenColorPicker()
+    local r, g, b, a = unpack(SST_DB.bgColor)
+    
+    ColorPickerFrame.hasOpacity = 1
+    ColorPickerFrame.opacity = 1 - a
+    ColorPickerFrame:SetColorRGB(r, g, b)
+    
+    local origR, origG, origB, origA = r, g, b, a
+    
+    ColorPickerFrame.func = function()
+        local newR, newG, newB = ColorPickerFrame:GetColorRGB()
+        local newOpacity = ColorPickerFrame.opacity or 0
+        local newA = 1 - newOpacity
+        
+        SST_DB.bgColor = {newR, newG, newB, newA}
+        -- Мгновенное применение
+        frame:SetBackdropColor(newR, newG, newB, newA)
+    end
+    
+    ColorPickerFrame.cancelFunc = function()
+        SST_DB.bgColor = {origR, origG, origB, origA}
+        frame:SetBackdropColor(origR, origG, origB, origA)
+    end
+    
+    ColorPickerFrame:Hide()
+    ColorPickerFrame:Show()
+end
+
+btnSettings:SetScript("OnClick", OpenColorPicker)
+
+-- Перетаскивание
 frame:SetScript("OnDragStart", frame.StartMoving)
 frame:SetScript("OnDragStop", function(self)
     self:StopMovingOrSizing()
@@ -150,6 +216,9 @@ frame:SetScript("OnDragStop", function(self)
     SST_DB.y = y
 end)
 
+-- ==========================================
+-- ЗАГРУЗКА (ЗДЕСЬ ПРИМЕНЯЕТСЯ СОХРАНЕННЫЙ ЦВЕТ)
+-- ==========================================
 local loadFrame = CreateFrame("Frame")
 loadFrame:RegisterEvent("ADDON_LOADED")
 loadFrame:RegisterEvent("PLAYER_LOGIN")
@@ -160,15 +229,21 @@ loadFrame:SetScript("OnEvent", function(self, event, arg1)
         btnRaid.UpdateVisuals()
         btnGuild.UpdateVisuals()
 
+        -- КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Применяем сохраненный цвет фона ТОЛЬКО здесь, 
+        -- когда SST_DB уже гарантированно загружен из файла.
+        frame:SetBackdropColor(SST_DB.bgColor[1], SST_DB.bgColor[2], SST_DB.bgColor[3], SST_DB.bgColor[4])
+
         if SST_DB.isVisible then frame:Show() else frame:Hide() end
         frame:ClearAllPoints()
         frame:SetPoint(SST_DB.point, UIParent, SST_DB.point, SST_DB.x, SST_DB.y)
+        
     elseif event == "PLAYER_LOGIN" then
         if SST.Session then SST.Session:Init() end
         if SST.Cooldowns then SST.Cooldowns:Init() end
     end
 end)
 
+-- Команды чата
 SLASH_SST1 = "/sst"
 SLASH_SST2 = "/session"
 

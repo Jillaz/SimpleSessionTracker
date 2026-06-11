@@ -64,13 +64,11 @@ function SST.Session:Init()
     startTime = time()
 end
 
--- ИСПРАВЛЕННАЯ ФУНКЦИЯ СБРОСА
 function SST.Session:Reset()
     startTime = time()
     lastGold = GetMoney()
     sessionGained = 0
     sessionSpent = 0
-    -- Удален вызов SST.Cooldowns:Clear(), теперь список заклинаний не трогается
     print("|cff00ff00[SST]|r Статистика сессии сброшена.")
 end
 

@@ -1,9 +1,6 @@
 -- ==========================================
 -- Cooldowns.lua: Отслеживание перезарядки заклинаний
--- Версия: 13.0 (Скрытие недоступных заклинаний из списка)
 -- ==========================================
-
-print("|cff00ff00[SST]|r Версия Cooldowns.lua: 13.0 (Чистый список по специализации)")
 
 SST.Cooldowns = {}
 
@@ -20,10 +17,8 @@ cdTitle:SetPoint("TOPLEFT", cdContainer, "TOPLEFT", 0, 0)
 cdTitle:SetText("|cffaaaaaaПерезарядка:|r")
 cdTitle:Hide()
 
--- ФУНКЦИЯ ЗАГРУЗКИ: Добавляет в список ТОЛЬКО доступные заклинания
 function SST.Cooldowns:Init()
     wipe(trackedSpells)
-    local activeCount = 0
     
     local keys = {}
     if SST_DB and SST_DB.trackedIDs then
@@ -39,28 +34,20 @@ function SST.Cooldowns:Init()
         if spellID then
             local success, currentName = pcall(GetSpellInfo, spellID)
             
-            -- Проверяем, знает ли персонаж это заклинание в текущей специализации
             local isKnown = false
             local ok, knownResult = pcall(IsSpellKnown, spellID)
             if ok then isKnown = knownResult end
             
-            -- ИЗМЕНЕНИЕ: Добавляем в активный список только если заклинание известно
             if success and currentName and isKnown then
                 local s2, start, duration = pcall(GetSpellCooldown, currentName)
                 local endTime = (s2 and type(start) == "number" and type(duration) == "number" and duration > 0 and start > 0) and (start + duration) or GetTime()
                 
                 trackedSpells[spellID] = { name = currentName, endTime = endTime }
-                activeCount = activeCount + 1
             end
-            -- Если заклинание неизвестно, мы просто пропускаем его. 
-            -- Оно остается в SST_DB.trackedIDs, но не отображается в trackedSpells.
         end
     end
-    
-    print("|cff00ff00[SST]|r Загружено активных заклинаний: " .. activeCount)
 end
 
--- ФУНКЦИЯ ДОБАВЛЕНИЯ ПО НАЗВАНИЮ
 function SST.Cooldowns:Add(spellNameStr)
     if not spellNameStr or string.trim(spellNameStr) == "" then
         print("|cffff0000[SST]|r Ошибка: Пожалуйста, введите название заклинания. Пример: |cff00ff00/sst add Ледяная глыба|r")
@@ -88,8 +75,6 @@ function SST.Cooldowns:Add(spellNameStr)
     local endTime = (s2 and type(start) == "number" and type(duration) == "number" and duration > 0 and start > 0) and (start + duration) or GetTime()
     
     trackedSpells[spellID] = { name = name, endTime = endTime }
-    
-    -- Сохраняем имя заклинания в базу данных
     SST_DB.trackedIDs[tostring(spellID)] = name 
     
     print("|cff00ff00[SST]|r Заклинание [" .. name .. "] (ID: " .. spellID .. ") добавлено.")
@@ -154,7 +139,6 @@ function SST.Cooldowns.UpdateLayout()
         cooldownFrames[idx] = btn
     end
 
-    -- Авто-синхронизация кулдаунов
     for spellID, data in pairs(trackedSpells) do
         local success, start, duration = pcall(GetSpellCooldown, data.name)
         if success and type(start) == "number" and type(duration) == "number" and duration > 0 and start > 0 then
@@ -163,14 +147,11 @@ function SST.Cooldowns.UpdateLayout()
         end
     end
 
-    -- Отрисовка и обработка кликов
     local i = 1
     for spellID, data in pairs(trackedSpells) do
         if i > activeCount then break end
         
         local btn = cooldownFrames[i]
-        
-        -- ИЗМЕНЕНИЕ: Убрана логика статуса "Недоступно", так как в списке только активные заклинания
         local remaining = math.max(0, math.ceil(data.endTime - GetTime()))
         local statusText = remaining > 0 and format("|cffffd700%d|r сек.", remaining) or "|cff00ff00Готово|r"
         
@@ -184,7 +165,6 @@ function SST.Cooldowns.UpdateLayout()
                 print("|cffff0000[SST]|r Заклинание [" .. data.name .. "] (ID: " .. spellID .. ") удалено.")
                 SST.Cooldowns.UpdateLayout()
             else
-                -- ИЗМЕНЕНИЕ: Убрана проверка isAvailable
                 local anyEnabled = SST_DB.chSay or SST_DB.chParty or SST_DB.chRaid or SST_DB.chGuild
                 if not anyEnabled then
                     print("|cffff0000[SST]|r Необходимо выбрать канал для отправки сообщений.")
@@ -219,7 +199,6 @@ function SST.Cooldowns.UpdateLayout()
     end
 end
 
--- Слушатель смены специализации
 local talentFrame = CreateFrame("Frame")
 talentFrame:RegisterEvent("PLAYER_TALENT_UPDATE")
 talentFrame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
@@ -227,13 +206,8 @@ talentFrame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
 talentFrame:SetScript("OnEvent", function(self, event)
     SST.Cooldowns:Init()
     SST.Cooldowns.UpdateLayout()
-    
-    local activeCount = 0
-    for _ in pairs(trackedSpells) do activeCount = activeCount + 1 end
-    print("|cff00ff00[SST]|r Специализация изменена. Активных заклинаний в списке: " .. activeCount)
 end)
 
--- Основной цикл обновлений
 local updateFrame = CreateFrame("Frame")
 updateFrame:SetScript("OnUpdate", function(self, elapsed)
     if not self.timer then self.timer = 0 end

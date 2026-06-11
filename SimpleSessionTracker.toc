@@ -2,7 +2,7 @@
 ## Title: Simple Session & Cooldown Tracker
 ## Notes: Отслеживает время, золото и перезарядку заклинаний.
 ## Author: Qwen
-## Version: 7.0 (Character Specific Saves)
+## Version: 14.1 (Стандартный выбор цвета фона)
 ## SavedVariablesPerCharacter: SST_DB
 Core.lua
 Session.lua
