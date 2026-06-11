@@ -1,11 +1,12 @@
 -- ==========================================
 -- Core.lua: Основа, UI окна, кнопки и команды
+-- Версия: 15.0 (Упрощенный стабильный интерфейс)
 -- ==========================================
 
 SST = {}
 SST.showStats = true
 
--- 1. ЖЕСТКАЯ ИНИЦИАЛИЗАЦИЯ С ЗАЩИТОЙ ОТ NIL
+-- 1. ИНИЦИАЛИЗАЦИЯ СОХРАНЕНИЙ (Без цвета фона)
 if not SST_DB then
     SST_DB = {
         point = "CENTER",
@@ -16,8 +17,7 @@ if not SST_DB then
         chSay = true,
         chParty = false,
         chRaid = false,
-        chGuild = false,
-        bgColor = {0.1, 0.1, 0.1, 0.85} -- R, G, B, Alpha по умолчанию
+        chGuild = false
     }
 else
     if not SST_DB.trackedIDs then SST_DB.trackedIDs = {} end
@@ -25,9 +25,6 @@ else
     if SST_DB.chParty == nil then SST_DB.chParty = false end
     if SST_DB.chRaid == nil then SST_DB.chRaid = false end
     if SST_DB.chGuild == nil then SST_DB.chGuild = false end
-    if not SST_DB.bgColor or type(SST_DB.bgColor) ~= "table" or #SST_DB.bgColor ~= 4 then 
-        SST_DB.bgColor = {0.1, 0.1, 0.1, 0.85} 
-    end
 end
 
 local frame = CreateFrame("Frame", "SST_Frame", UIParent)
@@ -40,7 +37,7 @@ frame:SetClampedToScreen(true)
 SST.Frame = frame
 
 -- ==========================================
--- НАДЕЖНЫЙ МЕТОД ЗАДАНИЯ ФОНА И РАМКИ (SetBackdrop)
+-- СТАНДАРТНЫЙ ФОН И РАМКА (Жестко заданы)
 -- ==========================================
 frame:SetBackdrop({
     bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
@@ -51,7 +48,9 @@ frame:SetBackdrop({
     insets = { left = 4, right = 4, top = 4, bottom = 4 }
 })
 
--- Цвет рамки фиксируем (серый), он не меняется
+-- Стандартный темно-серый полупрозрачный фон (R, G, B, Alpha)
+frame:SetBackdropColor(0.1, 0.1, 0.1, 0.85)
+-- Стандартная серая рамка
 frame:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
 
 local function CreateControlButton(parent, textChar, colorR, colorG, colorB, onClickFunc)
@@ -159,53 +158,6 @@ closeBtn:SetScript("OnClick", function()
     SST_DB.isVisible = false
 end)
 
--- ==========================================
--- КНОПКА НАСТРОЕК (Шестеренка)
--- ==========================================
-local btnSettings = CreateFrame("Button", nil, frame)
-btnSettings:SetSize(18, 18)
-btnSettings:SetPoint("RIGHT", closeBtn, "LEFT", -4, 0)
-
-local settingsIcon = btnSettings:CreateTexture(nil, "ARTWORK")
-settingsIcon:SetAllPoints()
-settingsIcon:SetTexture("Interface\\Buttons\\UI-OptionsButton")
-
-local settingsHighlight = btnSettings:CreateTexture(nil, "HIGHLIGHT")
-settingsHighlight:SetAllPoints()
-settingsHighlight:SetTexture("Interface\\Buttons\\UI-OptionsButton")
-settingsHighlight:SetBlendMode("ADD")
-
--- ФУНКЦИЯ ЦВЕТОВОГО ПИКЕРА
-local function OpenColorPicker()
-    local r, g, b, a = unpack(SST_DB.bgColor)
-    
-    ColorPickerFrame.hasOpacity = 1
-    ColorPickerFrame.opacity = 1 - a
-    ColorPickerFrame:SetColorRGB(r, g, b)
-    
-    local origR, origG, origB, origA = r, g, b, a
-    
-    ColorPickerFrame.func = function()
-        local newR, newG, newB = ColorPickerFrame:GetColorRGB()
-        local newOpacity = ColorPickerFrame.opacity or 0
-        local newA = 1 - newOpacity
-        
-        SST_DB.bgColor = {newR, newG, newB, newA}
-        -- Мгновенное применение
-        frame:SetBackdropColor(newR, newG, newB, newA)
-    end
-    
-    ColorPickerFrame.cancelFunc = function()
-        SST_DB.bgColor = {origR, origG, origB, origA}
-        frame:SetBackdropColor(origR, origG, origB, origA)
-    end
-    
-    ColorPickerFrame:Hide()
-    ColorPickerFrame:Show()
-end
-
-btnSettings:SetScript("OnClick", OpenColorPicker)
-
 -- Перетаскивание
 frame:SetScript("OnDragStart", frame.StartMoving)
 frame:SetScript("OnDragStop", function(self)
@@ -216,9 +168,7 @@ frame:SetScript("OnDragStop", function(self)
     SST_DB.y = y
 end)
 
--- ==========================================
--- ЗАГРУЗКА (ЗДЕСЬ ПРИМЕНЯЕТСЯ СОХРАНЕННЫЙ ЦВЕТ)
--- ==========================================
+-- Загрузка
 local loadFrame = CreateFrame("Frame")
 loadFrame:RegisterEvent("ADDON_LOADED")
 loadFrame:RegisterEvent("PLAYER_LOGIN")
@@ -228,10 +178,6 @@ loadFrame:SetScript("OnEvent", function(self, event, arg1)
         btnParty.UpdateVisuals()
         btnRaid.UpdateVisuals()
         btnGuild.UpdateVisuals()
-
-        -- КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Применяем сохраненный цвет фона ТОЛЬКО здесь, 
-        -- когда SST_DB уже гарантированно загружен из файла.
-        frame:SetBackdropColor(SST_DB.bgColor[1], SST_DB.bgColor[2], SST_DB.bgColor[3], SST_DB.bgColor[4])
 
         if SST_DB.isVisible then frame:Show() else frame:Hide() end
         frame:ClearAllPoints()
