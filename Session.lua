@@ -26,8 +26,13 @@ local function FormatMoney(copper, colorCode)
 end
 
 local frame = SST.Frame
+
+local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+title:SetPoint("TOPLEFT", frame, "TOPLEFT", 5, -24)
+title:SetText("|cffaaaaaaСтатистика сессии:|r")
+
 local textTime = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-textTime:SetPoint("TOPLEFT", frame, "TOPLEFT", 5, -22)
+textTime:SetPoint("TOPLEFT", frame, "TOPLEFT", 5, -44)
 textTime:SetJustifyH("LEFT")
 textTime:SetTextColor(1, 0.8, 0)
 
@@ -43,8 +48,8 @@ local textNet = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 textNet:SetPoint("TOPLEFT", textSpent, "BOTTOMLEFT", 0, -2)
 textNet:SetJustifyH("LEFT")
 
--- ЭКСПОРТ элементов для управления из Core.lua
 SST.Session.elements = {
+    title = title,
     textTime = textTime,
     textGained = textGained,
     textSpent = textSpent,
@@ -59,13 +64,14 @@ function SST.Session:Init()
     startTime = time()
 end
 
+-- ИСПРАВЛЕННАЯ ФУНКЦИЯ СБРОСА
 function SST.Session:Reset()
     startTime = time()
     lastGold = GetMoney()
     sessionGained = 0
     sessionSpent = 0
-    if SST.Cooldowns then SST.Cooldowns:Clear() end
-    print("|cff00ff00[SST]|r Статистика сессии и список кулдаунов сброшены.")
+    -- Удален вызов SST.Cooldowns:Clear(), теперь список заклинаний не трогается
+    print("|cff00ff00[SST]|r Статистика сессии сброшена.")
 end
 
 local updateFrame = CreateFrame("Frame")
